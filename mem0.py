@@ -79,11 +79,14 @@ class Filter:
         It processes incoming messages before they are sent to the LLM.
         """
         
+        # Safely handle the user object to prevent errors when it's None.
+        safe_user = user if user is not None else {}
+        
         # User-specific valves are accessed from the 'user' dictionary
-        user_valves = self.UserValves(**user.get("valves", {}))
+        user_valves = self.UserValves(**safe_user.get("valves", {}))
         user_tag = user_valves.user_specific_memory_tag
         
-        print(f"Mem0 Filter inlet triggered for user: {user.get('name')}")
+        print(f"Mem0 Filter inlet triggered for user: {safe_user.get('name')}")
         print(f"Admin valves: {self.valves}")
         print(f"User valves: {user_valves}")
 
@@ -112,7 +115,7 @@ class Filter:
         #         self.setup()
 
         #     last_message = body["messages"][-1]["content"]
-        #     user_id = user.get("id")
+        #     user_id = safe_user.get("id")
 
         #     # Search for memories
         #     memories = self.mem0_client.search(
@@ -124,9 +127,9 @@ class Filter:
             
         #     # Add memories to context
         #     if memories:
-        #         context_header = "Here is some relevant context from past conversations:\\n"
-        #         context = "\\n".join([m['text'] for m in memories])
-        #         body["messages"][-1]["content"] = f"{context_header}{context}\\n\\nUser message: {last_message}"
+        #         context_header = "Here is some relevant context from past conversations:\n"
+        #         context = "\n".join([m['text'] for m in memories])
+        #         body["messages"][-1]["content"] = f"{context_header}{context}\n\nUser message: {last_message}"
 
         #     # Add current interaction to memory
         #     self.mem0_client.add(last_message, user_id=user_id, metadata={"tag": user_tag})
