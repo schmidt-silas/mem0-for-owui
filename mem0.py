@@ -1,121 +1,142 @@
+from pydantic import BaseModel, Field
+from typing import Optional, Literal
 
-import os
-from typing import Optional, List
-from pydantic import BaseModel
-
-class Action:
+# This is a Filter function, which modifies data before it's sent to the AI
+# or after it comes back. It includes a toggle switch and configuration valves.
+class Filter:
     """
-    Represents a custom action that can be triggered in the Open WebUI.
-    This action integrates mem0 with Qdrant and Ollama, and provides a
-    button to activate and deactivate the memory functionality.
+    A Filter function for Open WebUI to integrate mem0.
+    This filter can be toggled on or off and configured via admin and user valves.
+    When active, it will use mem0 to add context to prompts.
     """
 
-    def __init__(self, **kwargs):
-        self.state = {"active": False}
-        # Placeholder for mem0, Qdrant, and Ollama clients
-        self.mem0_client = None
-        self.qdrant_client = None
-        self.ollama_client = None
-        # Initialize clients if needed at startup
-        # self.initialize_clients()
+    # Valves are configurations set by the Open WebUI admin.
+    class Valves(BaseModel):
+        # Example of a numerical valve
+        top_k_memories: int = Field(
+            default=3,
+            description="Number of relevant memories to retrieve from mem0."
+        )
+        # Example of a multiple-choice valve
+        mem0_llm_model: Literal["ollama/llama3", "ollama/mistral"] = Field(
+            default="ollama/llama3",
+            description="The Ollama model to use for mem0 processing.",
+        )
+        # Priority determines the execution order of multiple filters
+        priority: int = Field(
+            default=0,
+            description="Priority level for the filter. Lower values run first."
+        )
+        pass
 
-    class Meta:
+    # UserValves are configurations that each user can set for themselves.
+    class UserValves(BaseModel):
+        user_specific_memory_tag: str = Field(
+            default="",
+            description="A specific tag to filter memories for this user."
+        )
+        pass
+
+    def __init__(self):
         """
-        Metadata for the action, defining its appearance and behavior in the UI.
+        Initializes the filter, setting up the toggle switch and its icon.
         """
-        id: str = "mem0_integration"
-        name: str = "Mem0 Integration"
-        description: str = "Integrates mem0 with Qdrant and Ollama for advanced memory management."
+        self.valves = self.Valves()
         
-        # This defines the button in the UI
-        def get_button(self, state):
-            return {
-                "id": "mem0_toggle",
-                "name": "Deactivate Mem0" if state.get("active") else "Activate Mem0",
-                "icon": "brain-circuit", # Using a Phosphor icon
-            }
+        # This attribute creates a toggle switch in the Open WebUI interface.
+        self.toggle = True 
+        
+        # The icon for the toggle switch, using SVG Data URI.
+        self.icon = """data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZT0iY3VycmVudENvbG9yIiBjbGFzcz0ic2l6ZS02Ij4KICA8cGF0aCBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGQ9Ik0xMiAxOHYtNS4yNW0wIDBhNi4wMSA2LjAxIDAgMCAwIDEuNS0uMTg5bS0xLjUuMTg5YTYuMDEgNi4wMSAwIDAgMS0xLjUtLjE4OW0zLjc1IDcuNDc4YTEyLjA2IDEyLjA2IDAgMCAxLTQuNSAwbTMuNzUgMi4zODNhMTQuNDA2IDE0LjQwNiAwIDAgMS0zIDBNMTQuMjUgMTh2LS4xOTJjMC0uOTgzLjY1OC0xLjgyMyAxLjUwOC0yLjMxNmE3LjUgNy41IDAgMSAwLTcuNTE3IDBjLjg1LjQ5MyAxLjUwOSAxLjMzMyAxLjUwOSAyLjMxNlYxOCIgLz4KPC9zdmc+Cg=="""
+        
+        # Placeholder for mem0 client. Initialization should be handled carefully
+        # to avoid re-creating the client on every request.
+        self.mem0_client = None
+        print("Mem0 Filter initialized.")
+        pass
 
-    def initialize_clients(self):
+    def setup(self):
         """
-        Initializes the clients for mem0, Qdrant, and Ollama.
-        This is where you would configure the connections.
+        This method is called once when the function is first loaded.
+        Use it to initialize clients and other one-time setup tasks.
         """
-        # Example of initializing mem0 with Qdrant and Ollama
-        # This is a hypothetical example and needs to be adapted to the actual mem0 library
         # from mem0 import Memory
         # from mem0.embeddings import OllamaEmbeddings
         # from mem0.vector_stores import QdrantVectorStore
-
-        # self.ollama_client = OllamaEmbeddings(model="nomic-embed-text")
-        # self.qdrant_client = QdrantVectorStore(host="localhost", port=6333)
         
-        # self.mem0_client = Memory.create(
-        #     vector_store=self.qdrant_client,
-        #     embeddings_model=self.ollama_client
+        # print("Initializing mem0 client...")
+        # self.mem0_client = Memory(
+        #     vector_store=QdrantVectorStore(config={"host": "localhost", "port": 6333}),
+        #     embedder=OllamaEmbeddings(model=self.valves.mem0_llm_model)
         # )
-        print("Clients would be initialized here.")
+        # print("Mem0 client initialized successfully.")
+        pass
 
-    def run(self, context: dict) -> dict:
-        """
-        This method is executed when the action's button is clicked.
-        """
-        if self.state["active"]:
-            self.state["active"] = False
-            # Logic to deactivate mem0, e.g., clear memory or stop processing
-            if self.mem0_client:
-                # self.mem0_client.clear_memory() # Example
-                print("Mem0 deactivated.")
-            return {"message": "Mem0 has been deactivated."}
-        else:
-            self.state["active"] = True
-            if not self.mem0_client:
-                self.initialize_clients()
-            # Logic to activate mem0
-            print("Mem0 activated.")
-            return {"message": "Mem0 has been activated and is now processing messages."}
 
-# The following is a hypothetical example of how you might use this as a Filter Function
-# to process messages when mem0 is active. This would need to be in a separate
-# Filter Function file, but is included here for context.
-
-class Mem0Filter:
-    def __init__(self, **kwargs):
-        # This would share the state with the Action Function, perhaps via a shared module or file.
-        self.action_state = {"active": False} 
-        self.mem0_client = None # The shared mem0 client instance
-
-    def inlet(self, body: dict, __user__: dict) -> dict:
+    async def inlet(self, body: dict, __event_emitter__, user: Optional[dict] = None) -> dict:
         """
-        Processes incoming messages if mem0 is active.
+        This method is called when the toggle is ON.
+        It processes incoming messages before they are sent to the LLM.
         """
-        if self.action_state.get("active") and self.mem0_client:
-            user_message = body["messages"][-1]["content"]
+        
+        # User-specific valves are accessed from the 'user' dictionary
+        user_valves = self.UserValves(**user.get("valves", {}))
+        user_tag = user_valves.user_specific_memory_tag
+        
+        print(f"Mem0 Filter inlet triggered for user: {user.get('name')}")
+        print(f"Admin valves: {self.valves}")
+        print(f"User valves: {user_valves}")
+
+
+        # You can emit status updates to the UI.
+        await __event_emitter__(
+            {
+                "type": "status",
+                "data": {
+                    "description": f"Processing with mem0 (Top K: {self.valves.top_k_memories})...",
+                    "done": False, # Show as in-progress
+                    "hidden": False,
+                },
+            }
+        )
+
+        # This is where you would add the logic to interact with mem0.
+        # For example:
+        # 1. Get the last user message.
+        # 2. Search for relevant memories in mem0.
+        # 3. Prepend the memories to the user's message as context.
+        # 4. Add the new message to mem0.
+
+        # try:
+        #     if not self.mem0_client:
+        #         self.setup()
+
+        #     last_message = body["messages"][-1]["content"]
+        #     user_id = user.get("id")
+
+        #     # Search for memories
+        #     memories = self.mem0_client.search(
+        #         query=last_message, 
+        #         user_id=user_id, 
+        #         limit=self.valves.top_k_memories,
+        #         filters={"tag": user_tag} if user_tag else None
+        #     )
             
-            # 1. Search for relevant memories
-            # relevant_memories = self.mem0_client.search(user_message)
-            
-            # 2. Add context to the prompt
-            # if relevant_memories:
-            #     context_prefix = "Here is some relevant context from past conversations:\\n"
-            #     context_text = "\\n".join([mem["text"] for mem in relevant_memories])
-            #     body["messages"][-1]["content"] = f"{context_prefix}{context_text}\\n\\nUser message: {user_message}"
-            
-            # 3. Add the current message to memory
-            # self.mem0_client.add(user_message, user_id=__user__["id"])
-            print(f"Processing message with mem0: {user_message}")
+        #     # Add memories to context
+        #     if memories:
+        #         context_header = "Here is some relevant context from past conversations:\\n"
+        #         context = "\\n".join([m['text'] for m in memories])
+        #         body["messages"][-1]["content"] = f"{context_header}{context}\\n\\nUser message: {last_message}"
 
+        #     # Add current interaction to memory
+        #     self.mem0_client.add(last_message, user_id=user_id, metadata={"tag": user_tag})
+            
+        #     await __event_emitter__({ "type": "status", "data": { "description": "Mem0 context added.", "done": True }})
+        # except Exception as e:
+        #     print(f"Error in mem0 filter: {e}")
+        #     await __event_emitter__({ "type": "status", "data": { "description": f"Error: {e}", "done": True }})
+
+        
+        # For now, just returning the body as is.
+        # The commented-out code above shows a potential implementation.
         return body
-
-"""
-This file provides a basic structure for integrating mem0 with Open WebUI.
-To make this fully functional, you would need to:
-1.  Install the `mem0`, `qdrant-client`, and `ollama` Python libraries.
-2.  Have Qdrant and Ollama services running and accessible.
-3.  Flesh out the `initialize_clients` method with your actual connection details.
-4.  Implement the logic for how mem0 should process messages. The `Mem0Filter` class
-    provides a conceptual example of how you might intercept and modify messages.
-    This would likely need to be implemented as a separate Filter Function that
-    communicates with this Action Function.
-5.  Refer to the Open WebUI documentation for the specifics of creating and
-    installing custom functions.
-"""
