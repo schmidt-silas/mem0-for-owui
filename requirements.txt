@@ -1,0 +1,3 @@
+mem0
+qdrant-client
+ollama
